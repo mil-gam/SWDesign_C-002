@@ -1,0 +1,145 @@
+import java.util.*;
+
+// 고객 클래스
+class Customer {
+    String ssn;        // 주민번호
+    String password;   // 암호
+    String name;       // 성명
+    int mileage;       // 마일리지
+
+    public Customer(String ssn, String password, String name, int mileage) {
+        this.ssn = ssn;
+        this.password = password;
+        this.name = name;
+        this.mileage = mileage;
+    }
+}
+
+// 항공권 클래스
+class Ticket {
+    String flightId;   // 비행기편
+    String seat;       // 좌석
+    String departure;  // 출발시간
+    String arrival;    // 도착시간
+    int price;         // 항공권가격
+
+    public Ticket(String flightId, String seat, String departure, String arrival, int price) {
+        this.flightId = flightId;
+        this.seat = seat;
+        this.departure = departure;
+        this.arrival = arrival;
+        this.price = price;
+    }
+}
+
+// 예약정보 클래스
+class Reservation {
+    String resId;      // 예약id (주민번호+비행기편+좌석)
+    String ssn;        // 주민번호
+    String flightId;   // 비행기편
+    String seat;       // 좌석
+    String resDate;    // 예약날짜 (직접 입력)
+    boolean isPaid;    // 구매여부
+    int payAmount;     // 구매비용
+
+    public Reservation(String ssn, String flightId, String seat, String resDate) {
+        this.resId = ssn + flightId + seat; // 예약 ID 생성 규칙 적용
+        this.ssn = ssn;
+        this.flightId = flightId;
+        this.seat = seat;
+        this.resDate = resDate;
+        this.isPaid = false;
+        this.payAmount = 0;
+    }
+}
+
+class BookingService {
+    private Map<String, Customer> customers = new HashMap<>();
+    private Map<String, Ticket> tickets = new HashMap<>();
+    private Map<String, Reservation> reservations = new HashMap<>();
+
+    // 기본 기능들
+    public void registerCustomer(Customer c) { customers.put(c.ssn, c); }
+    public void registerTicket(Ticket t) { tickets.put(t.flightId, t); }
+
+    // 고객 인증
+    public boolean authenticate(String ssn, String password) {
+        Customer c = customers.get(ssn);
+        return c != null && c.password.equals(password);
+    }
+
+    // 예약 기능 (최대 5개 제한 로직 포함)
+    public void createReservations(String ssn, String password, List<Ticket> selectedTickets, String date) {
+        // 1. 고객인증 필수
+        if (!authenticate(ssn, password)) {
+            System.out.println("인증 실패: 예약을 진행할 수 없습니다.");
+            return;
+        }
+
+        // 2. 5개 제한 확인
+        if (selectedTickets.size() > 5) {
+            System.out.println("예약 실패: 한 번에 최대 5개까지만 예약 가능합니다.");
+            return;
+        }
+
+        for (Ticket t : selectedTickets) {
+            // 3. 항공권 조회 (존재 여부 확인)
+            if (tickets.containsKey(t.flightId)) {
+                Reservation res = new Reservation(ssn, t.flightId, t.seat, date);
+                reservations.put(res.resId, res);
+                System.out.println("예약 성공: " + res.resId);
+            }
+        }
+    }
+
+    // 구매 기능
+    public int purchase(String ssn, String password, String resId) {
+        // 1. 고객인증 및 예약조회
+        if (!authenticate(ssn, password)) return -1;
+        
+        Reservation res = reservations.get(resId);
+        if (res == null) {
+            System.out.println("예약 정보를 찾을 수 없습니다.");
+            return -1;
+        }
+
+        // 2. 마일리지 조회 및 계산
+        Customer c = customers.get(ssn);
+        Ticket t = tickets.get(res.flightId);
+        
+        int finalPrice = t.price;
+        if (c.mileage > 0) {
+            finalPrice = Math.max(0, t.price - c.mileage); // 마일리지 차감 (음수 방지)
+            System.out.println("마일리지 할인 적용: " + c.mileage + "원 할인됨");
+        }
+
+        // 3. 데이터 업데이트 및 결과 반환
+        res.isPaid = true;
+        res.payAmount = finalPrice;
+        
+        System.out.println("구매 완료! 최종 결제 금액: " + finalPrice);
+        return finalPrice;
+    }
+}
+
+public class AirlineMain {
+    public static void main(String[] args) {
+        BookingService system = new BookingService();
+
+        // 데이터 초기화
+        system.registerCustomer(new Customer("900101-1", "pass123", "홍길동", 5000));
+        system.registerTicket(new Ticket("KE101", "A12", "10:00", "12:00", 150000));
+
+        // 1. 예약 시나리오
+        List<Ticket> mySelection = new ArrayList<>();
+        mySelection.add(new Ticket("KE101", "A12", "10:00", "12:00", 150000));
+        
+        System.out.println("--- 예약 진행 ---");
+        system.createReservations("900101-1", "pass123", mySelection, "2026-05-01");
+
+        // 2. 구매 시나리오 (예약ID: 주민번호+비행기편+좌석)
+        System.out.println("\n--- 구매 진행 ---");
+        String resId = "900101-1" + "KE101" + "A12";
+        system.purchase("900101-1", "pass123", resId);
+    }
+}
